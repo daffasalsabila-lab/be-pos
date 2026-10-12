@@ -1,24 +1,4 @@
 import pool from "../config/db.js";
-const USERS = [
-  {
-    id: 1,
-    name: "Reza",
-    email: "reza@gmail.com",
-    password: "12345678",
-  },
-  {
-    id: 2,
-    name: "Ratna",
-    email: "ratna@gmail.com",
-    password: "12345678",
-  },
-  {
-    id: 3,
-    name: "Laras",
-    email: "laras@gmail.com",
-    password: "12345678",
-  },
-];
 
 //  crud (create, read, update, delete)
 
@@ -105,27 +85,32 @@ export const createUser = async (req, res) => {
 };
 
 export const updateUser = async (req, res) => {
-  const id = parseInt(req.params.id);
-  const { name, email, password } = req.body;
-  const [user] = await pool.query(
-    "UPDATE users SET name=?, email=?, password=? WHERE id=?",
-    [name, email, password, id],
-  );
-
-  const userIndex = USERS.findIndex((u) => u.id === id);
-  USERS[userIndex] = {
-    ...USERS[userIndex],
-    ...(name && { name }),
-    ...(email && { email }),
-    ...(password && { password }),
-  };
-
-  return res.status(200).json({
-    status: true,
-    message: "Update user success",
-    data: USERS[userIndex],
-  });
-};
+    try {
+        const id = parseInt(req.params.id);
+        const {name, email, password, is_active} = req.body;
+    
+        if(!password) {
+            const[user] = await pool.query
+            ("UPDATE users SET name=?, email=?, password=?, is_active=? WHERE id=?", 
+            [name, email, id]);
+        }else {
+            const [user] = await pool.query(
+              "UPDATE users SET name=?, email=?, password=?, is_active=? WHERE id=?",
+              [name, email, password, id],
+            );
+        }
+        return res.status(200).json({
+            status: true,
+            message: 'Update user success',
+            data: USERS,
+        });
+    } catch (error) {
+        return res.status(500).json({
+            status: false,
+            message: error.message,
+        });
+    }
+  }
 
 export const deleteUser = async (req, res) => {
   try {
@@ -141,7 +126,6 @@ export const deleteUser = async (req, res) => {
     return res.status(200).json({
       status: true,
       message: "delete user success",
-      
     });
   } catch (error) {
     return res.status(500).json({
@@ -149,8 +133,6 @@ export const deleteUser = async (req, res) => {
       message: error.message,
     });
   }
-
-
 
   // const deletedUser = USERS.splice(userIndex, 1)[0];
   // return res.status(200).json({
