@@ -5,7 +5,6 @@ export const createTransaction = async (req, res) => {
   const connection = await pool.getConnection();
 
   try {
-    
     const {
       order_number,
       user_id,
@@ -13,43 +12,48 @@ export const createTransaction = async (req, res) => {
       subtotal,
       tax,
       total,
-      items = [], pay = 0 } = req.body;
-      
-      // const userId = req.user?.id; //undifined kalau nggak pake ?
-      
-      await connection.beginTransaction();
-      // const orderNumber = await generateOrderNumber(connection);
-      // console.log("order number", orderNumber);
-      const isMidtrans = String(payment_method) === "1" || payment_method === "midtrans";
-      let change = 0;
-      let cashReceive = 0;
-      let status = "pending";
-      
-      if(payment_method === 2){
-        cashReceive = Number(pay);
-        if(cashReceive < Number(total)){
-          await connection.rollback();
-          return res.status(400).json({
-            status: false,
-            message: "Cash less then the total",
-          });
-        }
-        change = cashReceive - Number(total);
-        status = "settlement";
-      }
+      items = [],
+      pay = 0,
+    } = req.body;
 
-    const [transaction] = await pool.query
-    ("INSERT INTO orders (order_number, user_id, payment_method, subtotal, tax, total, pay, status) VALUES (?,?,?,?,?,?,?,?)",
-      [order_number, user_id, payment_method, subtotal, tax, total, pay, status]);
+    const userId = req.user?.id; //undifined kalau nggak pake ?
+
+    await connection.beginTransaction();
+    // const orderNumber = await generateOrderNumber(connection);
+    // console.log("order number", orderNumber);
+    const isMidtrans =
+      String(payment_method) === "1" || payment_method === "midtrans";
+    let change = 0;
+    let cashReceive = 0;
+    let status = "pending";
+
+    if (payment_method === 2) {
+      cashReceive = Number(pay);
+      if (cashReceive < Number(total)) {
+        await connection.rollback();
+        return res.status(400).json({
+          status: false,
+          message: "Cash less then the total",
+        });
+      }
+      change = cashReceive - Number(total);
+      status = "settlement";
+    }
+
+    const [transaction] = await pool.query(
+      "INSERT INTO orders (order_number, user_id, payment_method, subtotal, tax, total, pay, status) VALUES (?,?,?,?,?,?,?,?)",
+      [order_number, userId, payment_method, subtotal, tax, total, pay, status],
+    );
 
     // let realTotal = 0;
-    
+
     const orderId = transaction.insertId;
     if (items) {
       for (let item of items) {
         await pool.query(
           "INSERT INTO order_details (order_id,product_id,qty,price) VALUES (?,?,?,?)",
-          [orderId, item.product_id, item.qty, item.price]);
+          [orderId, item.product_id, item.qty, item.price],
+        );
       }
     }
 
@@ -61,7 +65,10 @@ export const createTransaction = async (req, res) => {
       const parameter = {
         transaction_details: {
           order_id: order_number,
-          gross_amount: Number(subtotal),
+          gross_amount: subtotal,
+        },
+        callbacks: {
+          finish: "http://localhost:5173/transaction/print",
         },
         enable_payments: ["gopay"],
         item_details: items.map((item) => ({
@@ -83,14 +90,14 @@ export const createTransaction = async (req, res) => {
           : "payment cash berhasil",
       order_id: orderId,
       order_number: order_number,
-      payment_details: 
-      payment_method == 2
-      ? {
-          total: Number(total),
-          cashReceive: cashReceive,
-          change: change,
-        } 
-      : null,
+      payment_details:
+        payment_method == 2
+          ? {
+              total: Number(total),
+              cashReceive: cashReceive,
+              change: change,
+            }
+          : null,
       payment_gateway: midtransResponse
         ? {
             token: midtransResponse.token,
@@ -161,21 +168,23 @@ const generateOrderNumber = async (connection) => {
   const prefix = `TR-${year}${month}${date}-`;
 
   //query
-  const [lastOrder] = await connection.query("SELECT order_number FROM orders WHERE order_number LIKE? ORDER BY id DESC LIMIT 1 FOR UPDATE", [`${prefix}`]);
+  const [lastOrder] = await connection.query(
+    "SELECT order_number FROM orders WHERE order_number LIKE? ORDER BY id DESC LIMIT 1 FOR UPDATE",
+    [`${prefix}`],
+  );
 
   // data{ order_number: }
   const nextNumber = 1;
-  if(lastOrder.length > 0) {
+  if (lastOrder.length > 0) {
     const lastNumber = lastOrder[0].order_number;
     const currentNumber = parseInt(lastNumber.split("-")[2], 10);
-    if(!isNaN(currentNumber)) {
+    if (!isNaN(currentNumber)) {
       nextNumber = currentNumber + 1;
     }
 
-      // NaN : not a number
+    // NaN : not a number
     // 10+"string" = NaN
   }
 
-  return `${prefix}${String(nextNumber).padStart(4, "0")}`// 00010
-
+  return `${prefix}${String(nextNumber).padStart(4, "0")}`; // 00010
 };
