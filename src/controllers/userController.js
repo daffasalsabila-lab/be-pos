@@ -1,4 +1,5 @@
 import pool from "../config/db.js";
+import bcrypt from "bcrypt";
 
 //  crud (create, read, update, delete)
 
@@ -85,32 +86,39 @@ export const createUser = async (req, res) => {
 };
 
 export const updateUser = async (req, res) => {
-    try {
-        const id = parseInt(req.params.id);
-        const {name, email, password, is_active} = req.body;
-    
-        if(!password) {
-            const[user] = await pool.query
-            ("UPDATE users SET name=?, email=?, password=?, is_active=? WHERE id=?", 
-            [name, email, id]);
-        }else {
-            const [user] = await pool.query(
-              "UPDATE users SET name=?, email=?, password=?, is_active=? WHERE id=?",
-              [name, email, password, id],
-            );
-        }
-        return res.status(200).json({
-            status: true,
-            message: 'Update user success',
-            data: USERS,
-        });
-    } catch (error) {
-        return res.status(500).json({
-            status: false,
-            message: error.message,
-        });
+  try {
+    const id = parseInt(req.params.id);
+    const { name, email, password, is_active } = req.body;
+
+    let update = "";
+
+    if (!password) {
+      update = await pool.query(
+        "UPDATE users SET name=?, email=?, is_active=? WHERE id=?",
+        [name, email, is_active, id],
+      );
+
+      console.log("tnp pass");
+    } else {
+      update = await pool.query(
+        "UPDATE users SET name=?, email=?, password=?, is_active=? WHERE id=?",
+        [name, email, bcrypt.hashSync(password, 10), is_active, id],
+      );
+
+      console.log("dgn pass");
     }
+    return res.status(200).json({
+      status: true,
+      message: "Update user success",
+      data: update,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: false,
+      message: error.message,
+    });
   }
+};
 
 export const deleteUser = async (req, res) => {
   try {
